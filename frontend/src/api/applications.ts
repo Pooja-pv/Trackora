@@ -1,3 +1,4 @@
+
 import apiClient from "./client";
 
 export type ApplicationStatus =
@@ -8,6 +9,8 @@ export type ApplicationStatus =
   | "Offer"
   | "Rejected"
   | "Withdrawn";
+
+export type WorkMode = "onsite" | "remote" | "hybrid";
 
 export interface Application {
   id: number;
@@ -27,16 +30,20 @@ export interface Application {
   updated_at: string;
 }
 
-
 export interface CreateApplicationData {
   company_name: string;
   job_title: string;
+  job_url: string;
   location: string;
+  work_mode: WorkMode | "";
   status: string;
+  job_description: string;
+  notes: string;
+  salary_range: string;
   applied_date: string;
+  interview_date: string | null;
   follow_up_date: string | null;
 }
-
 
 export async function getApplications(): Promise<Application[]> {
   const response = await apiClient.get("applications/");

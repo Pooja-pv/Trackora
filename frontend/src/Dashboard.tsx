@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
@@ -9,6 +10,8 @@ import {
   Trash2,
   TrendingUp,
   X,
+  ChevronDown,
+  ExternalLink,
 } from "lucide-react";
 import {
   createApplication,
@@ -17,6 +20,7 @@ import {
   updateApplication,
   type Application,
   type ApplicationStatus,
+  type WorkMode,
 } from "./api/applications";
 import PipelineAnalytics from "./components/PipelineAnalytics";
 
@@ -75,16 +79,40 @@ const getFollowUpState = (value?: string | null) => {
   return "scheduled";
 };
 
+const getLocalDateTime = (value?: string | null) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export default function Dashboard() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
   const [location, setLocation] = useState("");
+  const [workMode, setWorkMode] = useState<WorkMode | "">("");
   const [status, setStatus] = useState<ApplicationStatus>("Saved");
+  const [salaryRange, setSalaryRange] = useState("");
+  const [jobDescription, setJobDescription] = useState("");
+  const [notes, setNotes] = useState("");
+  const [appliedDate, setAppliedDate] = useState(getToday());
+  const [interviewDate, setInterviewDate] = useState("");
   const [followUpDate, setFollowUpDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -127,6 +155,8 @@ export default function Dashboard() {
         application.company_name,
         application.job_title,
         application.location,
+        application.salary_range,
+        application.notes,
       ].some((value) => value?.toLowerCase().includes(query));
 
       const matchesStatus =
@@ -153,11 +183,19 @@ export default function Dashboard() {
   const resetForm = () => {
     setCompany("");
     setPosition("");
+    setJobUrl("");
     setLocation("");
+    setWorkMode("");
     setStatus("Saved");
+    setSalaryRange("");
+    setJobDescription("");
+    setNotes("");
+    setAppliedDate(getToday());
+    setInterviewDate("");
     setFollowUpDate("");
     setEditingId(null);
     setShowForm(false);
+    setShowMoreDetails(false);
     setError("");
   };
 
@@ -177,11 +215,23 @@ export default function Dashboard() {
   const startEditing = (application: Application) => {
     setCompany(application.company_name);
     setPosition(application.job_title);
+    setJobUrl(application.job_url ?? "");
     setLocation(application.location ?? "");
+    setWorkMode(
+      ["onsite", "remote", "hybrid"].includes(application.work_mode)
+        ? (application.work_mode as WorkMode)
+        : "",
+    );
     setStatus(displayStatus(application.status) as ApplicationStatus);
+    setSalaryRange(application.salary_range ?? "");
+    setJobDescription(application.job_description ?? "");
+    setNotes(application.notes ?? "");
+    setAppliedDate(application.applied_date?.slice(0, 10) ?? getToday());
+    setInterviewDate(getLocalDateTime(application.interview_date));
     setFollowUpDate(application.follow_up_date?.slice(0, 10) ?? "");
     setEditingId(application.id);
     setShowForm(true);
+    setShowMoreDetails(true);
     setError("");
     setSuccess("");
 
@@ -201,20 +251,38 @@ export default function Dashboard() {
       return;
     }
 
+    if (jobUrl.trim()) {
+      try {
+        const parsedUrl = new URL(jobUrl.trim());
+
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+          setError("Please enter a valid job URL beginning with http:// or https://.");
+          return;
+        }
+      } catch {
+        setError("Please enter a valid job URL beginning with http:// or https://.");
+        return;
+      }
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
 
-    const existingApplication = applications.find(
-      (application) => application.id === editingId,
-    );
-
     const payload = {
       company_name: company.trim(),
       job_title: position.trim(),
+      job_url: jobUrl.trim(),
       location: location.trim(),
+      work_mode: workMode,
       status: status.toLowerCase(),
-      applied_date: existingApplication?.applied_date ?? getToday(),
+      salary_range: salaryRange.trim(),
+      job_description: jobDescription.trim(),
+      notes: notes.trim(),
+      applied_date: appliedDate || getToday(),
+      interview_date: interviewDate
+        ? new Date(interviewDate).toISOString()
+        : null,
       follow_up_date: followUpDate || null,
     };
 
@@ -237,11 +305,19 @@ export default function Dashboard() {
       }
 
       setShowForm(false);
+      setShowMoreDetails(false);
       setEditingId(null);
       setCompany("");
       setPosition("");
+      setJobUrl("");
       setLocation("");
+      setWorkMode("");
       setStatus("Saved");
+      setSalaryRange("");
+      setJobDescription("");
+      setNotes("");
+      setAppliedDate(getToday());
+      setInterviewDate("");
       setFollowUpDate("");
     } catch {
       setError("Unable to save the application. Please check your details and try again.");
@@ -428,6 +504,15 @@ export default function Dashboard() {
             </label>
 
             <label>
+              Applied date
+              <input
+                type="date"
+                value={appliedDate}
+                onChange={(event) => setAppliedDate(event.target.value)}
+              />
+            </label>
+
+            <label>
               Follow-up date
               <input
                 type="date"
@@ -435,6 +520,90 @@ export default function Dashboard() {
                 onChange={(event) => setFollowUpDate(event.target.value)}
               />
             </label>
+
+            <button
+              type="button"
+              className="form-cancel-button"
+              onClick={() => setShowMoreDetails((current) => !current)}
+              aria-expanded={showMoreDetails}
+            >
+              <span>More job details</span>
+              <ChevronDown
+                size={18}
+                style={{
+                  transform: showMoreDetails ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 160ms ease",
+                }}
+              />
+            </button>
+
+            {showMoreDetails && (
+              <div className="application-form-details">
+                <label>
+                  Job posting URL
+                  <input
+                    type="url"
+                    value={jobUrl}
+                    onChange={(event) => setJobUrl(event.target.value)}
+                    placeholder="https://company.com/jobs/..."
+                  />
+                </label>
+
+                <label>
+                  Work mode
+                  <select
+                    value={workMode}
+                    onChange={(event) =>
+                      setWorkMode(event.target.value as WorkMode | "")
+                    }
+                  >
+                    <option value="">Not specified</option>
+                    <option value="onsite">On-site</option>
+                    <option value="remote">Remote</option>
+                    <option value="hybrid">Hybrid</option>
+                  </select>
+                </label>
+
+                <label>
+                  Salary range
+                  <input
+                    type="text"
+                    value={salaryRange}
+                    onChange={(event) => setSalaryRange(event.target.value)}
+                    placeholder="e.g. ₹3–5 LPA"
+                  />
+                </label>
+
+                <label>
+                  Interview date and time
+                  <input
+                    type="datetime-local"
+                    value={interviewDate}
+                    onChange={(event) => setInterviewDate(event.target.value)}
+                  />
+                </label>
+
+                <label className="application-form-full-width">
+                  Job description
+                  <textarea
+                    value={jobDescription}
+                    onChange={(event) => setJobDescription(event.target.value)}
+                    placeholder="Paste the job description or key requirements..."
+                    rows={5}
+                  />
+                </label>
+
+                <label className="application-form-full-width">
+                  Personal notes
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    placeholder="Recruiter contact, application notes, or preparation reminders..."
+                    rows={4}
+                  />
+                </label>
+              </div>
+            )}
 
             <div className="application-form-actions">
               <button
@@ -544,6 +713,7 @@ export default function Dashboard() {
                   <th>Status</th>
                   <th>Date added</th>
                   <th>Follow-up</th>
+                  <th>Job link</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -588,6 +758,24 @@ export default function Dashboard() {
                               </span>
                             )}
                           </div>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+
+                      <td>
+                        {application.job_url ? (
+                          <a
+                            href={application.job_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="application-job-link"
+                            aria-label={`Open job posting for ${application.company_name}`}
+                            title="Open original job posting"
+                          >
+                            <ExternalLink size={16} />
+                            Open
+                          </a>
                         ) : (
                           "—"
                         )}
