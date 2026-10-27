@@ -11,26 +11,41 @@ import { useNavigate } from "react-router-dom";
 import { getApplications, type Application } from "../api/applications";
 import PipelineAnalytics from "../components/PipelineAnalytics";
 
+
+
 function ApplicationActivityChart({
   applications,
 }: {
   applications: Application[];
 }) {
+  const [period, setPeriod] = useState<7 | 30 | 90>(7);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const dayOfWeek = (today.getDay() + 6) % 7;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - dayOfWeek);
+  const startDate = new Date(today);
 
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
+  if (period === 7) {
+    const dayOfWeek = today.getDay();
+    startDate.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+  } else {
+    startDate.setDate(today.getDate() - period + 1);
+  }
+
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + period - 1);
+
+  const dateKey = (date: Date) =>
+    `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+  const days = Array.from({ length: period }, (_, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
 
     return {
       date,
-      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
-      label: date.toLocaleDateString("en", { weekday: "short" }),
+      key: dateKey(date),
     };
   });
 
@@ -43,57 +58,110 @@ function ApplicationActivityChart({
       if (Number.isNaN(date.getTime())) return false;
 
       date.setHours(0, 0, 0, 0);
-
-      return (
-        `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` ===
-        day.key
-      );
+      return dateKey(date) === day.key;
     }).length,
   );
 
+  const total = counts.reduce((sum, count) => sum + count, 0);
   const maxCount = Math.max(...counts, 1);
   const axisStep = Math.max(1, Math.ceil(maxCount / 3));
-  const axisMax = Math.ceil(maxCount / axisStep) * axisStep;
+  const axisMax = Math.max(
+    axisStep,
+    Math.ceil(maxCount / axisStep) * axisStep,
+  );
 
-  const chartWidth = 640;
-  const chartHeight = 170;
-  const left = 38;
+  const chartWidth = 720;
+  const chartHeight = 250;
+  const left = 44;
   const right = 18;
-  const top = 16;
-  const bottom = 32;
+  const top = 24;
+  const bottom = 42;
   const plotWidth = chartWidth - left - right;
   const plotHeight = chartHeight - top - bottom;
 
   const points = counts.map((count, index) => ({
-    x: left + (plotWidth / 6) * index,
+    x: left + (plotWidth / Math.max(period - 1, 1)) * index,
     y: top + plotHeight - (count / axisMax) * plotHeight,
     count,
   }));
 
   const line = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const area = `${left},${top + plotHeight} ${line} ${
-    left + plotWidth
-  },${top + plotHeight}`;
-
-  const totalThisWeek = counts.reduce((sum, count) => sum + count, 0);
+  const area = `${left},${top + plotHeight} ${line} ${left + plotWidth},${top + plotHeight}`;
 
   const axisValues = Array.from(
-    { length: axisMax / axisStep + 1 },
+    { length: Math.ceil(axisMax / axisStep) + 1 },
     (_, index) => axisMax - index * axisStep,
   );
+
+  const labelIndexes =
+    period === 7
+      ? Array.from({ length: 7 }, (_, index) => index)
+      : Array.from(
+          new Set(
+            Array.from({ length: 7 }, (_, index) =>
+              Math.round((index * (period - 1)) / 6),
+            ),
+          ),
+        );
+
+  const formatDate = (date: Date, includeYear = false) =>
+    date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      ...(includeYear ? { year: "numeric" } : {}),
+    });
+
+  const selected =
+    selectedIndex === null
+      ? null
+      : {
+          ...days[selectedIndex],
+          ...points[selectedIndex],
+        };
 
   return (
     <section className="activity-chart-card">
       <div className="activity-chart-header">
-        <div>
+        <div className="activity-chart-heading">
           <span className="analytics-eyebrow">YOUR RECENT ACTIVITY</span>
           <h3>Application activity</h3>
-          <p>Applications recorded this week.</p>
+          <p>
+            {period === 7 ? "Week of " : ""}
+            {formatDate(startDate)}
+            {" – "}
+            {formatDate(endDate, true)}
+          </p>
         </div>
+
         <div className="activity-chart-total">
-          <strong>{totalThisWeek}</strong>
-          <span>This week</span>
+          <strong>{total}</strong>
+          <span>
+            {period === 7
+              ? "This week"
+              : `Last ${period} days`}
+          </span>
         </div>
+      </div>
+
+      <div
+        className="activity-period-switch"
+        role="group"
+        aria-label="Activity reporting period"
+      >
+        {([7, 30, 90] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            className={period === value ? "active" : ""}
+            aria-pressed={period === value}
+            onClick={() => {
+              setPeriod(value);
+              setSelectedIndex(null);
+            }}
+          >
+            {value === 7 ? "Week" : `${value} days`}
+          </button>
+        ))}
       </div>
 
       {applications.length === 0 ? (
@@ -104,19 +172,38 @@ function ApplicationActivityChart({
         </div>
       ) : (
         <>
+          {total === 0 && (
+            <div className="activity-chart-no-results">
+              No applications recorded in this period. Try a longer date range
+              or add an application to see your activity here.
+            </div>
+          )}
+
           <div className="activity-chart-visual">
             <svg
               viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-              role="img"
-              aria-label={`Application activity from Monday to Sunday. ${totalThisWeek} applications recorded this week.`}
+              role="group"
+              aria-label={`Application activity from ${formatDate(startDate)} to ${formatDate(endDate)}. ${total} applications recorded.`}
               preserveAspectRatio="xMidYMid meet"
             >
-              {axisValues.map((value, index) => {
-                const y =
-                  top + plotHeight - (value / axisMax) * plotHeight;
+              <defs>
+                <linearGradient
+                  id="activityChartGradient"
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.34" />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.015" />
+                </linearGradient>
+              </defs>
+
+              {axisValues.map((value) => {
+                const y = top + plotHeight - (value / axisMax) * plotHeight;
 
                 return (
-                  <g key={index}>
+                  <g key={value}>
                     <line
                       x1={left}
                       y1={y}
@@ -147,43 +234,80 @@ function ApplicationActivityChart({
               />
 
               {points.map((point, index) => (
-                <g key={days[index].key}>
+                <g
+                  key={days[index].key}
+                  className="activity-chart-data-point"
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  onMouseLeave={() => setSelectedIndex(null)}
+                >
                   <circle
                     cx={point.x}
                     cy={point.y}
-                    r="4"
-                    className="activity-chart-point"
-                  >
-                    <title>
-                      {days[index].date.toLocaleDateString("en", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                      : {point.count}{" "}
-                      {point.count === 1 ? "application" : "applications"}
-                    </title>
-                  </circle>
-                  <text
-                    x={point.x}
-                    y={chartHeight - 10}
-                    textAnchor="middle"
-                    className="activity-chart-axis-label"
-                  >
-                    {days[index].label}
-                  </text>
+                    r={selectedIndex === index ? 6 : period === 7 ? 4 : 2.5}
+                    className={`activity-chart-point${selectedIndex === index ? " selected" : ""}`}
+                  />
+                  <circle
+                    cx={point.x}
+                    cy={point.y}
+                    r={period === 7 ? 12 : 8}
+                    fill="transparent"
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${formatDate(days[index].date)}: ${point.count} ${point.count === 1 ? "application" : "applications"}`}
+                    onFocus={() => setSelectedIndex(index)}
+                    onBlur={() => setSelectedIndex(null)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedIndex(index);
+                      }
+                      if (event.key === "Escape") {
+                        setSelectedIndex(null);
+                      }
+                    }}
+                  />
                 </g>
+              ))}
+
+              {labelIndexes.map((index) => (
+                <text
+                  key={days[index].key}
+                  x={points[index].x}
+                  y={chartHeight - 12}
+                  textAnchor="middle"
+                  className="activity-chart-axis-label"
+                >
+                  {period === 7
+                    ? days[index].date.toLocaleDateString("en-IN", {
+                        weekday: "short",
+                      })
+                    : formatDate(days[index].date)}
+                </text>
               ))}
             </svg>
           </div>
+
+          {selected && (
+            <div className="activity-chart-tooltip" aria-live="polite">
+              <span>{formatDate(selected.date, true)}</span>
+              <strong>
+                {selected.count}{" "}
+                {selected.count === 1 ? "application" : "applications"}
+              </strong>
+            </div>
+          )}
+
           <p className="activity-chart-footnote">
             Based on application dates, or creation dates when no application
-            date is set.
+            date is set. Select or hover over a chart point for details.
           </p>
         </>
       )}
     </section>
   );
 }
+
+
 
 export default function AnalyticsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
