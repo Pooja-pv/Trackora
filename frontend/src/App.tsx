@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import {
   BriefcaseBusiness,
   ChartNoAxesCombined,
@@ -9,6 +17,7 @@ import {
   LogOut,
 } from "lucide-react";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import Dashboard from "./Dashboard";
 import Overview from "./pages/Overview";
 import AnalyticsPage from "./pages/AnalyticsPage";
@@ -16,16 +25,22 @@ import FollowUpsPage from "./pages/FollowUpsPage";
 import ImportJobsPage from "./pages/ImportJobsPage";
 import ApplicationDetailsPage from "./pages/ApplicationDetailsPage";
 import "./App.css";
-import {
-  getCurrentUser,
-  logoutUser,
-  type AuthUser,
-} from "./api/auth";
+import { getCurrentUser, logoutUser, type AuthUser } from "./api/auth";
 
 const navigation = [
   { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/applications", label: "My Applications", icon: BriefcaseBusiness, end: false },
-  { to: "/analytics", label: "Analytics", icon: ChartNoAxesCombined, end: false },
+  {
+    to: "/applications",
+    label: "My Applications",
+    icon: BriefcaseBusiness,
+    end: false,
+  },
+  {
+    to: "/analytics",
+    label: "Analytics",
+    icon: ChartNoAxesCombined,
+    end: false,
+  },
   { to: "/follow-ups", label: "Follow-ups", icon: Clock3, end: false },
   { to: "/import", label: "Import Jobs", icon: FileUp, end: false },
 ];
@@ -40,6 +55,7 @@ function Workspace({
   logoutError: string;
 }) {
   const location = useLocation();
+
   const currentPage = navigation.find((item) =>
     item.end
       ? location.pathname === item.to
@@ -54,12 +70,10 @@ function Workspace({
           <span>/</span>
           <strong>{currentPage?.label ?? "Overview"}</strong>
         </div>
-
         <div className="topbar-actions">
           <span className="signed-in-label">
             Signed in as <strong>{user.username}</strong>
           </span>
-
           <button type="button" className="secondary-button" onClick={onLogout}>
             <LogOut size={16} />
             Sign out
@@ -82,9 +96,7 @@ function Workspace({
               </span>
               <span>Trackora</span>
             </div>
-
             <p className="sidebar-section-label">WORKSPACE</p>
-
             {navigation.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
@@ -98,7 +110,6 @@ function Workspace({
                 <span>{label}</span>
               </NavLink>
             ))}
-
             <div className="sidebar-bottom">
               <div className="sidebar-tip">
                 <ChartNoAxesCombined size={20} />
@@ -117,17 +128,18 @@ function Workspace({
                 <h1>{currentPage?.label ?? "Overview"}</h1>
               </div>
             </header>
-
             <Routes>
               <Route path="/" element={<Overview />} />
               <Route path="/applications" element={<Dashboard />} />
-              <Route path="/applications/:id" element={<ApplicationDetailsPage />} />
+              <Route
+                path="/applications/:id"
+                element={<ApplicationDetailsPage />}
+              />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/follow-ups" element={<FollowUpsPage />} />
               <Route path="/import" element={<ImportJobsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-
             <footer className="dashboard-footer">
               <span>Trackora</span>
               <span>Stay organized. Move forward.</span>
@@ -139,7 +151,8 @@ function Workspace({
   );
 }
 
-export default function App() {
+function AppContent() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [logoutError, setLogoutError] = useState("");
@@ -165,6 +178,7 @@ export default function App() {
     try {
       await logoutUser();
       setUser(null);
+      navigate("/login", { replace: true });
     } catch {
       setLogoutError("Unable to log out. Please try again.");
     }
@@ -178,17 +192,56 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <LoginPage onLogin={checkSession} />;
-  }
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          user ? (
+            <Navigate to="/" replace />
+          ) : (
+            <LoginPage
+              onLogin={checkSession}
+              onShowRegister={() => navigate("/register")}
+            />
+          )
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          user ? (
+            <Navigate to="/" replace />
+          ) : (
+            <RegisterPage
+              onRegistered={() => navigate("/login", { replace: true })}
+              onShowLogin={() => navigate("/login")}
+            />
+          )
+        }
+      />
+      <Route
+        path="/*"
+        element={
+          user ? (
+            <Workspace
+              user={user}
+              onLogout={() => void handleLogout()}
+              logoutError={logoutError}
+            />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
+    </Routes>
+  );
+}
 
+export default function App() {
   return (
     <BrowserRouter>
-      <Workspace
-        user={user}
-        onLogout={() => void handleLogout()}
-        logoutError={logoutError}
-      />
+      <AppContent />
     </BrowserRouter>
   );
 }

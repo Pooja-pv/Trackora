@@ -1,13 +1,20 @@
 import { useState, type FormEvent } from "react";
-import { BriefcaseBusiness, Eye, EyeOff, LockKeyhole, UserRound } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  UserRound,
+} from "lucide-react";
 import { loginUser } from "../api/auth";
 import "./LoginPage.css";
 
 interface LoginPageProps {
   onLogin: () => Promise<void>;
+  onShowRegister: () => void;
 }
 
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage({ onLogin, onShowRegister }: LoginPageProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +30,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       await loginUser({ username, password });
       await onLogin();
     } catch {
-      setError("Login failed. Check your username and password, then try again.");
+      setError(
+        "Login failed. Check your username and password, then try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -122,17 +131,23 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
             {error && <p className="login-error">{error}</p>}
 
-            <button
-              className="login-submit"
-              type="submit"
-              disabled={loading}
-            >
+            <button className="login-submit" type="submit" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
-
           <p className="login-security-note">
             Your account is protected by secure session authentication.
+          </p>
+
+          <p className="login-security-note">
+            New to Trackora?{" "}
+            <button
+              type="button"
+              className="auth-switch-button"
+              onClick={onShowRegister}
+            >
+              Create an account
+            </button>
           </p>
         </div>
       </section>

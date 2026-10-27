@@ -317,3 +317,24 @@
     transition: none;
   }
 }
+
+.auth-switch-button {
+  padding: 0;
+  border: 0;
+  color: #4268ed;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.auth-switch-button:hover {
+  color: #3458d5;
+  text-decoration: underline;
+}
+
+.auth-switch-button:focus-visible {
+  outline: 2px solid #4268ed;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
