@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
@@ -15,6 +14,7 @@ import Overview from "./pages/Overview";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import FollowUpsPage from "./pages/FollowUpsPage";
 import ImportJobsPage from "./pages/ImportJobsPage";
+import ApplicationDetailsPage from "./pages/ApplicationDetailsPage";
 import "./App.css";
 import {
   getCurrentUser,
@@ -121,6 +121,7 @@ function Workspace({
             <Routes>
               <Route path="/" element={<Overview />} />
               <Route path="/applications" element={<Dashboard />} />
+              <Route path="/applications/:id" element={<ApplicationDetailsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/follow-ups" element={<FollowUpsPage />} />
               <Route path="/import" element={<ImportJobsPage />} />

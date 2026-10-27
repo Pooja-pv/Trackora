@@ -1,10 +1,11 @@
-
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   BriefcaseBusiness,
   CalendarDays,
   CirclePlus,
   Clock3,
+  Eye,
   Pencil,
   Search,
   Trash2,
@@ -36,7 +37,9 @@ const statusOptions: ApplicationStatus[] = [
 
 const displayStatus = (value: string) => {
   const normalized = value.toLowerCase();
-  return statusOptions.find((item) => item.toLowerCase() === normalized) ?? value;
+  return (
+    statusOptions.find((item) => item.toLowerCase() === normalized) ?? value
+  );
 };
 
 const getToday = () => {
@@ -96,6 +99,8 @@ const getLocalDateTime = (value?: string | null) => {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [applications, setApplications] = useState<Application[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -105,7 +110,7 @@ export default function Dashboard() {
   const [company, setCompany] = useState("");
   const [position, setPosition] = useState("");
   const [jobUrl, setJobUrl] = useState("");
-  const [location, setLocation] = useState("");
+  const [locationValue, setLocationValue] = useState("");
   const [workMode, setWorkMode] = useState<WorkMode | "">("");
   const [status, setStatus] = useState<ApplicationStatus>("Saved");
   const [salaryRange, setSalaryRange] = useState("");
@@ -117,6 +122,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [applicationToDelete, setApplicationToDelete] = useState<Application | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -133,7 +139,9 @@ export default function Dashboard() {
         }
       } catch {
         if (active) {
-          setError("Unable to load your applications. Please refresh and try again.");
+          setError(
+            "Unable to load your applications. Please refresh and try again.",
+          );
         }
       } finally {
         if (active) setLoading(false);
@@ -146,6 +154,100 @@ export default function Dashboard() {
       active = false;
     };
   }, []);
+
+  const resetForm = () => {
+    setCompany("");
+    setPosition("");
+    setJobUrl("");
+    setLocationValue("");
+    setWorkMode("");
+    setStatus("Saved");
+    setSalaryRange("");
+    setJobDescription("");
+    setNotes("");
+    setAppliedDate(getToday());
+    setInterviewDate("");
+    setFollowUpDate("");
+    setEditingId(null);
+    setShowForm(false);
+    setShowMoreDetails(false);
+    setError("");
+  };
+
+  const startEditing = (application: Application) => {
+    setCompany(application.company_name);
+    setPosition(application.job_title);
+    setJobUrl(application.job_url ?? "");
+    setLocationValue(application.location ?? "");
+    setWorkMode(
+      ["onsite", "remote", "hybrid"].includes(application.work_mode)
+        ? (application.work_mode as WorkMode)
+        : "",
+    );
+    setStatus(displayStatus(application.status) as ApplicationStatus);
+    setSalaryRange(application.salary_range ?? "");
+    setJobDescription(application.job_description ?? "");
+    setNotes(application.notes ?? "");
+    setAppliedDate(application.applied_date?.slice(0, 10) ?? getToday());
+    setInterviewDate(getLocalDateTime(application.interview_date));
+    setFollowUpDate(application.follow_up_date?.slice(0, 10) ?? "");
+    setEditingId(application.id);
+    setShowForm(true);
+    setShowMoreDetails(true);
+    setError("");
+    setSuccess("");
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document.getElementById("application-form")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+  };
+
+  useEffect(() => {
+    const state = location.state as {
+      editApplicationId?: number | string;
+    } | null;
+
+    if (loading || state?.editApplicationId == null) return;
+
+    const selectedApplication = applications.find(
+      (application) =>
+        String(application.id) === String(state.editApplicationId),
+    );
+
+    if (selectedApplication) {
+      startEditing(selectedApplication);
+    }
+
+    navigate(location.pathname, {
+      replace: true,
+      state: null,
+    });
+  }, [
+    location.key,
+    location.pathname,
+    location.state,
+    applications,
+    loading,
+    navigate,
+  ]);
+
+  const openNewForm = () => {
+    resetForm();
+    setSuccess("");
+    setShowForm(true);
+
+    window.setTimeout(() => {
+      document.getElementById("application-form")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  };
 
   const filteredApplications = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -180,69 +282,6 @@ export default function Dashboard() {
     return state === "overdue" || state === "upcoming";
   }).length;
 
-  const resetForm = () => {
-    setCompany("");
-    setPosition("");
-    setJobUrl("");
-    setLocation("");
-    setWorkMode("");
-    setStatus("Saved");
-    setSalaryRange("");
-    setJobDescription("");
-    setNotes("");
-    setAppliedDate(getToday());
-    setInterviewDate("");
-    setFollowUpDate("");
-    setEditingId(null);
-    setShowForm(false);
-    setShowMoreDetails(false);
-    setError("");
-  };
-
-  const openNewForm = () => {
-    resetForm();
-    setSuccess("");
-    setShowForm(true);
-
-    window.setTimeout(() => {
-      document.getElementById("application-form")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
-  };
-
-  const startEditing = (application: Application) => {
-    setCompany(application.company_name);
-    setPosition(application.job_title);
-    setJobUrl(application.job_url ?? "");
-    setLocation(application.location ?? "");
-    setWorkMode(
-      ["onsite", "remote", "hybrid"].includes(application.work_mode)
-        ? (application.work_mode as WorkMode)
-        : "",
-    );
-    setStatus(displayStatus(application.status) as ApplicationStatus);
-    setSalaryRange(application.salary_range ?? "");
-    setJobDescription(application.job_description ?? "");
-    setNotes(application.notes ?? "");
-    setAppliedDate(application.applied_date?.slice(0, 10) ?? getToday());
-    setInterviewDate(getLocalDateTime(application.interview_date));
-    setFollowUpDate(application.follow_up_date?.slice(0, 10) ?? "");
-    setEditingId(application.id);
-    setShowForm(true);
-    setShowMoreDetails(true);
-    setError("");
-    setSuccess("");
-
-    window.setTimeout(() => {
-      document.getElementById("application-form")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 0);
-  };
-
   const saveApplication = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -256,11 +295,15 @@ export default function Dashboard() {
         const parsedUrl = new URL(jobUrl.trim());
 
         if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-          setError("Please enter a valid job URL beginning with http:// or https://.");
+          setError(
+            "Please enter a valid job URL beginning with http:// or https://.",
+          );
           return;
         }
       } catch {
-        setError("Please enter a valid job URL beginning with http:// or https://.");
+        setError(
+          "Please enter a valid job URL beginning with http:// or https://.",
+        );
         return;
       }
     }
@@ -273,7 +316,7 @@ export default function Dashboard() {
       company_name: company.trim(),
       job_title: position.trim(),
       job_url: jobUrl.trim(),
-      location: location.trim(),
+      location: locationValue.trim(),
       work_mode: workMode,
       status: status.toLowerCase(),
       salary_range: salaryRange.trim(),
@@ -310,7 +353,7 @@ export default function Dashboard() {
       setCompany("");
       setPosition("");
       setJobUrl("");
-      setLocation("");
+      setLocationValue("");
       setWorkMode("");
       setStatus("Saved");
       setSalaryRange("");
@@ -320,19 +363,18 @@ export default function Dashboard() {
       setInterviewDate("");
       setFollowUpDate("");
     } catch {
-      setError("Unable to save the application. Please check your details and try again.");
+      setError(
+        "Unable to save the application. Please check your details and try again.",
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const removeApplication = async (id: number) => {
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this application?",
-    );
+  const removeApplication = async () => {
+    if (!applicationToDelete) return;
 
-    if (!confirmed) return;
-
+    const id = applicationToDelete.id;
     setDeletingId(id);
     setError("");
     setSuccess("");
@@ -347,8 +389,10 @@ export default function Dashboard() {
       if (editingId === id) resetForm();
 
       setSuccess("Application deleted successfully.");
+      setApplicationToDelete(null);
     } catch {
       setError("Unable to delete the application. Please try again.");
+      setApplicationToDelete(null);
     } finally {
       setDeletingId(null);
     }
@@ -440,7 +484,9 @@ export default function Dashboard() {
         <section className="application-form-card" id="application-form">
           <div className="section-heading">
             <div>
-              <h2>{editingId !== null ? "Edit application" : "Add application"}</h2>
+              <h2>
+                {editingId !== null ? "Edit application" : "Add application"}
+              </h2>
               <p>Keep your job search details up to date.</p>
             </div>
 
@@ -481,8 +527,8 @@ export default function Dashboard() {
               Location
               <input
                 type="text"
-                value={location}
-                onChange={(event) => setLocation(event.target.value)}
+                value={locationValue}
+                onChange={(event) => setLocationValue(event.target.value)}
                 placeholder="e.g. Kochi or Remote"
               />
             </label>
@@ -631,6 +677,52 @@ export default function Dashboard() {
         </section>
       )}
 
+      {applicationToDelete && (
+        <div
+          className="delete-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && deletingId === null) {
+              setApplicationToDelete(null);
+            }
+          }}
+        >
+          <section
+            className="delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
+            aria-describedby="delete-modal-description"
+          >
+            <div className="delete-modal-icon">
+              <Trash2 size={23} />
+            </div>
+            <h2 id="delete-modal-title">Delete application?</h2>
+            <p id="delete-modal-description">
+              Are you sure you want to delete the application for <strong>{applicationToDelete.company_name}</strong>? This action cannot be undone.
+            </p>
+            <div className="delete-modal-actions">
+              <button
+                type="button"
+                className="delete-modal-cancel"
+                onClick={() => setApplicationToDelete(null)}
+                disabled={deletingId !== null}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="delete-modal-confirm"
+                onClick={() => void removeApplication()}
+                disabled={deletingId !== null}
+              >
+                {deletingId !== null ? "Deleting..." : "Delete application"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <section className="applications-section">
         <div className="applications-heading">
           <div>
@@ -721,7 +813,9 @@ export default function Dashboard() {
               <tbody>
                 {filteredApplications.map((application) => {
                   const applicationStatus = displayStatus(application.status);
-                  const followUpState = getFollowUpState(application.follow_up_date);
+                  const followUpState = getFollowUpState(
+                    application.follow_up_date,
+                  );
 
                   return (
                     <tr key={application.id}>
@@ -747,7 +841,9 @@ export default function Dashboard() {
                       <td>
                         {application.follow_up_date ? (
                           <div className="follow-up-cell">
-                            <span>{formatDate(application.follow_up_date)}</span>
+                            <span>
+                              {formatDate(application.follow_up_date)}
+                            </span>
                             {followUpState !== "scheduled" && (
                               <span
                                 className={`follow-up-badge follow-up-${followUpState}`}
@@ -786,6 +882,18 @@ export default function Dashboard() {
                           <button
                             type="button"
                             className="application-action-button"
+                            aria-label={`View details for ${application.company_name}`}
+                            title="View application details"
+                            onClick={() =>
+                              navigate(`/applications/${application.id}`)
+                            }
+                          >
+                            <Eye size={16} />
+                          </button>
+
+                          <button
+                            type="button"
+                            className="application-action-button"
                             aria-label={`Edit ${application.company_name}`}
                             title="Edit application"
                             onClick={() => startEditing(application)}
@@ -799,7 +907,7 @@ export default function Dashboard() {
                             aria-label={`Delete ${application.company_name}`}
                             title="Delete application"
                             disabled={deletingId === application.id}
-                            onClick={() => void removeApplication(application.id)}
+                            onClick={() => setApplicationToDelete(application)}
                           >
                             <Trash2 size={16} />
                           </button>

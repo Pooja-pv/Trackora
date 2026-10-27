@@ -1,8 +1,10 @@
+
 import {
   BriefcaseBusiness,
   CheckCircle2,
   ChartNoAxesCombined,
   MessageSquare,
+  Target,
   XCircle,
 } from "lucide-react";
 import type { Application } from "../api/applications";
@@ -33,15 +35,12 @@ export default function PipelineAnalytics({
   }));
 
   const total = applications.length;
-  const interviewCount = counts.find(
-    (stage) => stage.key === "interview",
-  )?.count ?? 0;
-  const offerCount = counts.find(
-    (stage) => stage.key === "offer",
-  )?.count ?? 0;
-  const rejectedCount = counts.find(
-    (stage) => stage.key === "rejected",
-  )?.count ?? 0;
+  const interviewCount =
+    counts.find((stage) => stage.key === "interview")?.count ?? 0;
+  const offerCount =
+    counts.find((stage) => stage.key === "offer")?.count ?? 0;
+  const rejectedCount =
+    counts.find((stage) => stage.key === "rejected")?.count ?? 0;
 
   const activeApplications = applications.filter((application) =>
     ["applied", "assessment", "interview", "offer", "rejected"].includes(
@@ -92,7 +91,7 @@ export default function PipelineAnalytics({
           <span className="pipeline-metric-label">Interview progress</span>
           <strong>{interviewRate}%</strong>
           <span className="pipeline-metric-caption">
-            Interview-stage or offer applications / active applications
+            Interviews or offers / active applications
           </span>
         </article>
 
@@ -112,13 +111,26 @@ export default function PipelineAnalytics({
         <div className="pipeline-breakdown-heading">
           <div>
             <h3>Status breakdown</h3>
-            <p>{total} total {total === 1 ? "application" : "applications"}</p>
+            <p>
+              {total} total {total === 1 ? "application" : "applications"}
+            </p>
           </div>
+          <span className="pipeline-total-badge">
+            <BriefcaseBusiness size={14} />
+            {total} tracked
+          </span>
         </div>
 
         {total === 0 ? (
           <div className="pipeline-empty">
-            Add your first application to see your pipeline analytics.
+            <span className="pipeline-empty-icon">
+              <Target size={23} />
+            </span>
+            <strong>No pipeline data yet</strong>
+            <p>
+              Add your first application to see your status distribution and
+              progress metrics here.
+            </p>
           </div>
         ) : (
           <div className="pipeline-stage-list">
@@ -136,7 +148,8 @@ export default function PipelineAnalytics({
                       {stage.label}
                     </span>
                     <span className="pipeline-stage-count">
-                      {stage.count} · {percentage}%
+                      <strong>{stage.count}</strong>
+                      <span>{percentage}%</span>
                     </span>
                   </div>
                   <div
@@ -166,7 +179,12 @@ export default function PipelineAnalytics({
         <div className="pipeline-note">
           <XCircle size={16} />
           <span>
-            {rejectedCount} {rejectedCount === 1 ? "application has" : "applications have"} been marked as rejected.
+            {rejectedCount}{" "}
+            {rejectedCount === 1
+              ? "application has"
+              : "applications have"}{" "}
+            been marked as rejected. Review any notes and keep your next steps
+            up to date.
           </span>
         </div>
       )}
