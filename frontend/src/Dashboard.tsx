@@ -219,14 +219,18 @@ export default function Dashboard() {
         String(application.id) === String(state.editApplicationId),
     );
 
-    if (selectedApplication) {
-      startEditing(selectedApplication);
-    }
+    const timer = window.setTimeout(() => {
+      if (selectedApplication) {
+        startEditing(selectedApplication);
+      }
+    }, 0);
 
     navigate(location.pathname, {
       replace: true,
       state: null,
     });
+
+    return () => window.clearTimeout(timer);
   }, [
     location.key,
     location.pathname,

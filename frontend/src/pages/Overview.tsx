@@ -6,8 +6,38 @@ import {
   ChartNoAxesCombined,
   Clock3,
   TrendingUp,
+  CircleCheck,
+  CircleX,
+  ArrowUpRight,
+  ClipboardList,
 } from "lucide-react";
 import { getApplications, type Application } from "../api/applications";
+
+const pipelineStatuses = [
+  { label: "Saved", color: "pipeline-saved" },
+  { label: "Applied", color: "pipeline-applied" },
+  { label: "Assessment", color: "pipeline-assessment" },
+  { label: "Interview", color: "pipeline-interview" },
+  { label: "Offer", color: "pipeline-offer" },
+];
+
+function normalizeStatus(status: string) {
+  return status.trim().toLowerCase();
+}
+
+function formatDate(dateValue: string | null) {
+  if (!dateValue) return "—";
+
+  const date = new Date(`${dateValue.slice(0, 10)}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export default function Overview() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -33,25 +63,41 @@ export default function Overview() {
     };
   }, []);
 
+  const countStatus = (status: string) =>
+    applications.filter(
+      (application) =>
+        normalizeStatus(application.status) === status.toLowerCase(),
+    ).length;
+
   const interviews = applications.filter((application) =>
-    ["interview", "assessment"].includes(application.status.toLowerCase()),
+    ["interview", "assessment"].includes(normalizeStatus(application.status)),
   ).length;
 
-  const offers = applications.filter(
-    (application) => application.status.toLowerCase() === "offer",
+  const offers = countStatus("Offer");
+  const rejected = countStatus("Rejected");
+  const activeApplications = applications.filter((application) =>
+    ["saved", "applied", "assessment", "interview"].includes(
+      normalizeStatus(application.status),
+    ),
   ).length;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const followUpsDue = applications.filter((application) => {
-    if (!application.follow_up_date) return false;
+  const followUpApplications = applications
+    .filter((application) => {
+      if (!application.follow_up_date) return false;
 
-    const date = new Date(`${application.follow_up_date.slice(0, 10)}T00:00:00`);
-    const daysUntil = (date.getTime() - today.getTime()) / 86400000;
+      const date = new Date(
+        `${application.follow_up_date.slice(0, 10)}T00:00:00`,
+      );
+      const daysUntil = (date.getTime() - today.getTime()) / 86400000;
 
-    return !Number.isNaN(date.getTime()) && daysUntil >= 0 && daysUntil <= 7;
-  }).length;
+      return !Number.isNaN(date.getTime()) && daysUntil >= 0 && daysUntil <= 7;
+    })
+    .sort((a, b) =>
+      (a.follow_up_date ?? "").localeCompare(b.follow_up_date ?? ""),
+    );
 
   const recentApplications = [...applications]
     .sort((a, b) => {
@@ -85,12 +131,17 @@ export default function Overview() {
     },
     {
       label: "Follow-ups due",
-      value: followUpsDue,
+      value: followUpApplications.length,
       caption: "Due within the next 7 days",
       icon: Clock3,
       color: "stat-icon-orange",
     },
   ];
+
+  const responseRate =
+    applications.length > 0
+      ? Math.round(((interviews + offers) / applications.length) * 100)
+      : 0;
 
   return (
     <>
@@ -126,6 +177,79 @@ export default function Overview() {
             </article>
           );
         })}
+      </section>
+
+      <section className="applications-section">
+        <div className="applications-heading">
+          <div>
+            <h2>Application pipeline</h2>
+            <p>See where your opportunities currently stand.</p>
+          </div>
+          <Link className="secondary-button" to="/applications">
+            Manage jobs
+          </Link>
+        </div>
+
+        <div className="pipeline-grid">
+          {pipelineStatuses.map((status) => {
+            const count = countStatus(status.label);
+            const percentage =
+              applications.length > 0 ? (count / applications.length) * 100 : 0;
+
+            return (
+              <article className="pipeline-card" key={status.label}>
+                <span className="pipeline-label">{status.label}</span>
+                <strong className="pipeline-number">
+                  {loading ? "—" : count}
+                </strong>
+                <div className="pipeline-track">
+                  <span
+                    className={`pipeline-fill ${status.color}`}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+                <span className="pipeline-caption">
+                  {loading
+                    ? "Loading"
+                    : `${Math.round(percentage)}% of applications`}
+                </span>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="dashboard-stats">
+        <article className="dashboard-stat-card">
+          <span className="stat-icon stat-icon-green">
+            <CircleCheck size={21} />
+          </span>
+          <p>Interview / offer rate</p>
+          <strong>{loading ? "—" : `${responseRate}%`}</strong>
+          <span className="stat-caption">
+            Interviews and offers relative to all applications
+          </span>
+        </article>
+
+        <article className="dashboard-stat-card">
+          <span className="stat-icon stat-icon-orange">
+            <CircleX size={21} />
+          </span>
+          <p>Rejected applications</p>
+          <strong>{loading ? "—" : rejected}</strong>
+          <span className="stat-caption">Keep learning from each outcome</span>
+        </article>
+
+        <article className="dashboard-stat-card">
+          <span className="stat-icon stat-icon-blue">
+            <ClipboardList size={21} />
+          </span>
+          <p>Active opportunities</p>
+          <strong>{loading ? "—" : activeApplications}</strong>
+          <span className="stat-caption">
+            Saved, applied, assessment, or interview
+          </span>
+        </article>
       </section>
 
       <section className="applications-section">
@@ -177,27 +301,64 @@ export default function Overview() {
                     <td>{application.location || "—"}</td>
                     <td>
                       <span
-                        className={`application-status status-${application.status.toLowerCase()}`}
+                        className={`application-status status-${normalizeStatus(application.status)}`}
                       >
-                        {application.status.charAt(0).toUpperCase() +
-                          application.status.slice(1)}
+                        {application.status}
                       </span>
                     </td>
-                    <td>
-                      {application.follow_up_date
-                        ? new Date(
-                            `${application.follow_up_date.slice(0, 10)}T00:00:00`,
-                          ).toLocaleDateString("en-IN", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "—"}
-                    </td>
+                    <td>{formatDate(application.follow_up_date)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </section>
+
+      <section className="applications-section">
+        <div className="applications-heading">
+          <div>
+            <h2>Upcoming follow-ups</h2>
+            <p>Scheduled follow-ups within the next seven days.</p>
+          </div>
+          <Link className="secondary-button" to="/follow-ups">
+            View follow-ups
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="applications-empty">
+            <p>Checking your follow-ups...</p>
+          </div>
+        ) : followUpApplications.length === 0 ? (
+          <div className="applications-empty">
+            <span className="empty-icon">
+              <Clock3 size={23} />
+            </span>
+            <h3>You're up to date</h3>
+            <p>No follow-ups are scheduled for the next seven days.</p>
+          </div>
+        ) : (
+          <div className="follow-up-list">
+            {followUpApplications.slice(0, 4).map((application) => (
+              <article className="follow-up-item" key={application.id}>
+                <div className="follow-up-item-icon">
+                  <Clock3 size={19} />
+                </div>
+                <div className="follow-up-item-content">
+                  <strong>{application.company_name}</strong>
+                  <span>{application.job_title}</span>
+                  <small>{formatDate(application.follow_up_date)}</small>
+                </div>
+                <Link
+                  className="follow-up-open-link"
+                  to={`/applications/${application.id}`}
+                  aria-label={`View ${application.company_name} application`}
+                >
+                  <ArrowUpRight size={19} />
+                </Link>
+              </article>
+            ))}
           </div>
         )}
       </section>

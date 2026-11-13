@@ -17,3 +17,8 @@ coverage/
 .vscode/
 .idea/
 .DS_Store
+.env.*
+!.env.example
+!frontend/.env.example
+*.sqlite3
+*.log

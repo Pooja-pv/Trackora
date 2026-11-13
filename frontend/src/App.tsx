@@ -169,7 +169,9 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    void checkSession();
+    // Defer the initial session lookup until after the first paint.
+    const timer = window.setTimeout(() => void checkSession(), 0);
+    return () => window.clearTimeout(timer);
   }, [checkSession]);
 
   const handleLogout = async () => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   createApplication,
+  extractJobDetails,
   type CreateApplicationData,
   type WorkMode,
 } from "../api/applications";
@@ -31,22 +32,24 @@ function getErrorMessage(error: unknown): string {
       }
     ).response;
 
-    if (response?.data) {
-      if (typeof response.data === "object" && response.data !== null) {
-        return Object.entries(response.data)
-          .map(([field, messages]) => {
-            const details = Array.isArray(messages)
-              ? messages.join(", ")
-              : typeof messages === "string"
-                ? messages
-                : JSON.stringify(messages);
+    if (response?.data && typeof response.data === "object") {
+      const data = response.data as Record<string, unknown>;
 
-            return `${field}: ${details}`;
-          })
-          .join(" | ");
+      if (typeof data.error === "string") {
+        return data.error;
       }
 
-      return String(response.data);
+      return Object.entries(data)
+        .map(([field, messages]) => {
+          const details = Array.isArray(messages)
+            ? messages.join(", ")
+            : typeof messages === "string"
+              ? messages
+              : JSON.stringify(messages);
+
+          return `${field}: ${details}`;
+        })
+        .join(" | ");
     }
 
     if (response?.status) {
@@ -61,20 +64,118 @@ function getErrorMessage(error: unknown): string {
   return "An unexpected error occurred. Please try again.";
 }
 
+function isValidJobUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      Boolean(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function clearExtractedFields(
+  current: CreateApplicationData,
+  jobUrl = current.job_url,
+): CreateApplicationData {
+  return {
+    ...current,
+    job_url: jobUrl,
+    company_name: "",
+    job_title: "",
+    location: "",
+    work_mode: "",
+    job_description: "",
+  };
+}
+
 export default function ImportJobsPage() {
   const [form, setForm] = useState<CreateApplicationData>(initialForm);
+  const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [extractionMessage, setExtractionMessage] = useState("");
 
   function updateField<K extends keyof CreateApplicationData>(
     field: K,
     value: CreateApplicationData[K],
   ) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+    setForm((current) => {
+      if (field === "job_url" && value !== current.job_url) {
+        return clearExtractedFields(current, String(value));
+      }
+
+      return {
+        ...current,
+        [field]: value,
+      };
+    });
+
+    setError("");
+    setSuccess("");
+
+    if (field === "job_url") {
+      setExtractionMessage("");
+    }
+  }
+
+  async function handleExtract() {
+    setError("");
+    setSuccess("");
+    setExtractionMessage("");
+
+    const url = form.job_url.trim();
+
+    if (!url || !isValidJobUrl(url)) {
+      setForm((current) => clearExtractedFields(current, url));
+      setError("Enter a valid HTTP or HTTPS job posting URL first.");
+      return;
+    }
+
+    setForm((current) => clearExtractedFields(current, url));
+    setExtracting(true);
+
+    try {
+      const details = await extractJobDetails(url);
+
+      if (!details.job_title?.trim() || !details.company_name?.trim()) {
+        throw new Error(
+          "A specific job listing could not be identified. Open an individual job posting URL or enter the details manually.",
+        );
+      }
+
+      setForm((current) => ({
+        ...current,
+        job_url: details.job_url || url,
+        job_title: details.job_title || "",
+        company_name: details.company_name || "",
+        location: details.location || "",
+        work_mode: details.work_mode || "",
+        job_description: details.job_description || "",
+      }));
+
+      const found = [
+        details.job_title,
+        details.company_name,
+        details.location,
+        details.job_description,
+      ].filter((value) => value?.trim()).length;
+
+      setExtractionMessage(
+        found > 0
+          ? "Details extracted where available. Review and edit them before saving."
+          : "No job details were detected. Enter the details manually.",
+      );
+    } catch (err: unknown) {
+      setForm((current) => clearExtractedFields(current, url));
+      setExtractionMessage("");
+      setError(getErrorMessage(err));
+    } finally {
+      setExtracting(false);
+    }
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -89,18 +190,9 @@ export default function ImportJobsPage() {
 
     const jobUrl = form.job_url.trim();
 
-    if (jobUrl) {
-      try {
-        const parsedUrl = new URL(jobUrl);
-
-        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-          setError("Please enter a valid job posting URL.");
-          return;
-        }
-      } catch {
-        setError("Please enter a valid job posting URL.");
-        return;
-      }
+    if (jobUrl && !isValidJobUrl(jobUrl)) {
+      setError("Please enter a valid job posting URL.");
+      return;
     }
 
     setSaving(true);
@@ -121,6 +213,7 @@ export default function ImportJobsPage() {
       });
 
       setForm({ ...initialForm });
+      setExtractionMessage("");
       setSuccess("Job saved to Trackora successfully.");
     } catch (err: unknown) {
       setError(getErrorMessage(err));
@@ -131,19 +224,45 @@ export default function ImportJobsPage() {
 
   return (
     <section className="applications-section">
+      {(error || success) && (
+        <div
+          className={`import-job-toast ${
+            error ? "import-job-toast-error" : "import-job-toast-success"
+          }`}
+          role={error ? "alert" : "status"}
+          aria-live={error ? "assertive" : "polite"}
+        >
+          <span>{error || success}</span>
+          <button
+            type="button"
+            className="import-job-toast-close"
+            onClick={() => {
+              setError("");
+              setSuccess("");
+            }}
+            aria-label="Dismiss notification"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div className="applications-heading">
         <div>
           <h2>Import jobs</h2>
-          <p>Add a job posting to Trackora and keep its details organized.</p>
+          <p>
+            Extract job details from a public listing and review them before
+            saving.
+          </p>
         </div>
       </div>
 
       <div className="import-job-panel">
         <div className="import-job-intro">
-          <h3>Add a job from a URL</h3>
+          <h3>Import from a job URL</h3>
           <p>
-            Paste the job posting link, enter the details, and save the
-            opportunity to your application tracker.
+            Paste a public job posting link and let Trackora find available
+            details. Some websites may block automatic extraction.
           </p>
         </div>
 
@@ -158,9 +277,24 @@ export default function ImportJobsPage() {
               onChange={(event) => updateField("job_url", event.target.value)}
             />
             <span className="import-job-hint">
-              Copy the URL from the original job listing.
+              Use the original public job listing URL.
             </span>
+            <div className="import-job-actions">
+              <button
+                type="button"
+                onClick={handleExtract}
+                disabled={extracting || saving}
+              >
+                {extracting ? "Extracting..." : "Extract Details"}
+              </button>
+            </div>
           </div>
+
+          {extractionMessage && (
+            <p className="import-job-message import-job-success" role="status">
+              {extractionMessage}
+            </p>
+          )}
 
           <div className="import-job-field">
             <label htmlFor="import-company">Company name *</label>
@@ -262,7 +396,7 @@ export default function ImportJobsPage() {
             <textarea
               id="import-description"
               rows={5}
-              placeholder="Paste the job responsibilities and requirements..."
+              placeholder="Review or enter the job responsibilities and requirements..."
               value={form.job_description}
               onChange={(event) =>
                 updateField("job_description", event.target.value)
@@ -281,21 +415,9 @@ export default function ImportJobsPage() {
             />
           </div>
 
-          {error && (
-            <p className="import-job-message import-job-error" role="alert">
-              {error}
-            </p>
-          )}
-
-          {success && (
-            <p className="import-job-message import-job-success" role="status">
-              {success}
-            </p>
-          )}
-
           <div className="import-job-actions">
-            <button type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Save to Trackora"}
+            <button type="submit" disabled={saving || extracting}>
+              {saving ? "Saving..." : "Review and Save Job"}
             </button>
           </div>
         </form>

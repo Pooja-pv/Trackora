@@ -3067,3 +3067,64 @@ textarea:focus-visible {
     width: 100%;
   }
 }
+
+.import-job-toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  width: min(440px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(20, 30, 60, 0.14);
+}
+
+.import-job-toast-error {
+  color: #991b1b;
+  background: #fff1f2;
+  border-color: #fecaca;
+}
+
+.import-job-toast-success {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.import-job-toast-close {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@keyframes import-job-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .import-job-toast {
+    top: 12px;
+    right: 12px;
+    width: calc(100vw - 24px);
+  }
+}
