@@ -2,6 +2,9 @@
 import json
 
 from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
@@ -58,8 +61,15 @@ def register_view(request):
     if password != password_confirmation:
         return JsonResponse({"detail": "Passwords do not match."}, status=400)
 
-    if len(password) < 8:
-        return JsonResponse({"detail": "Password must contain at least 8 characters."}, status=400)
+    try:
+        validate_email(email)
+    except ValidationError:
+        return JsonResponse({"detail": "Enter a valid email address."}, status=400)
+
+    try:
+        validate_password(password)
+    except ValidationError as error:
+        return JsonResponse({"detail": error.messages[0]}, status=400)
 
     if User.objects.filter(username__iexact=username).exists():
         return JsonResponse({"detail": "This username is already taken."}, status=400)

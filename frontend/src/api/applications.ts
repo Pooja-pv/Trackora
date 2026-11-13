@@ -80,3 +80,24 @@ export async function updateApplication(
 export async function deleteApplication(id: number): Promise<void> {
   await apiClient.delete(`applications/${id}/`);
 }
+
+
+export interface ExtractedJobDetails {
+  job_url: string;
+  job_title: string;
+  company_name: string;
+  location: string;
+  work_mode: WorkMode | "";
+  job_description: string;
+}
+
+export async function extractJobDetails(
+  url: string,
+): Promise<ExtractedJobDetails> {
+  const response = await apiClient.post<ExtractedJobDetails>(
+    "applications/extract/",
+    { url },
+  );
+
+  return response.data;
+}
