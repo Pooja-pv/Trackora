@@ -49,6 +49,28 @@ class JobApplicationAPITests(APITestCase):
         self.assertEqual(response.data["count"], 1)
         self.assertEqual(response.data["results"][0]["company_name"], "My Company")
 
+    def test_application_list_is_paginated_after_ten_records(self):
+        self.client.force_authenticate(user=self.user)
+        JobApplication.objects.bulk_create([
+            JobApplication(
+                user=self.user,
+                company_name=f"Company {index}",
+                job_title="Software Engineer",
+            )
+            for index in range(12)
+        ])
+
+        first_page = self.client.get(self.list_url)
+        self.assertEqual(first_page.status_code, status.HTTP_200_OK)
+        self.assertEqual(first_page.data["count"], 12)
+        self.assertEqual(len(first_page.data["results"]), 10)
+        self.assertIsNotNone(first_page.data["next"])
+
+        second_page = self.client.get(f"{self.list_url}?page=2")
+        self.assertEqual(second_page.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(second_page.data["results"]), 2)
+        self.assertIsNone(second_page.data["next"])
+
     def test_user_cannot_access_another_users_application(self):
         application = JobApplication.objects.create(
             user=self.other_user, company_name="Private Company", job_title="Software Engineer"

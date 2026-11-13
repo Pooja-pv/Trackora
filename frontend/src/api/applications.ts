@@ -45,18 +45,33 @@ export interface CreateApplicationData {
 }
 
 export async function getApplications(): Promise<Application[]> {
-  const response = await apiClient.get("applications/");
-  const data = response.data;
+  const applications: Application[] = [];
+  let page = 1;
 
-  if (Array.isArray(data)) {
-    return data as Application[];
+  while (true) {
+    const response = await apiClient.get("applications/", {
+      params: { page },
+    });
+    const data = response.data;
+
+    // Support both an unpaginated response and DRF's paginated response.
+    if (Array.isArray(data)) {
+      return page === 1 ? data as Application[] : applications.concat(data as Application[]);
+    }
+
+    if (!data || !Array.isArray(data.results)) {
+      throw new Error("Unexpected applications API response format.");
+    }
+
+    applications.push(...(data.results as Application[]));
+
+    // DRF returns `next: null` when there are no more pages.
+    if (!data.next) {
+      return applications;
+    }
+
+    page += 1;
   }
-
-  if (data && Array.isArray(data.results)) {
-    return data.results as Application[];
-  }
-
-  throw new Error("Unexpected applications API response format.");
 }
 
 export async function createApplication(

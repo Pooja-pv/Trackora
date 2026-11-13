@@ -108,7 +108,7 @@ python manage.py createsuperuser   # optional: create an admin account
 python manage.py runserver
 ```
 
-The API is available at `http://127.0.0.1:8000/` and the Django admin at `http://127.0.0.1:8000/admin/`.
+The API endpoints are available under `http://127.0.0.1:8000/api/` and the Django admin at `http://127.0.0.1:8000/admin/`. The root URL (`http://127.0.0.1:8000/`) does not serve an application page.
 
 ### 3. Start the frontend
 
