@@ -22,3 +22,4 @@ coverage/
 !frontend/.env.example
 *.sqlite3
 *.log
+/backend/trackora_db
