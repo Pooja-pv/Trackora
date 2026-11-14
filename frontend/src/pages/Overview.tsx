@@ -1,24 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import "./Overview.css";
+
 import {
   BriefcaseBusiness,
   CalendarDays,
   ChartNoAxesCombined,
   Clock3,
-  TrendingUp,
   CircleCheck,
   CircleX,
   ArrowUpRight,
+  ArrowRight,
   ClipboardList,
+  Sparkles,
+  Target,
+  RefreshCw,
 } from "lucide-react";
+
 import { getApplications, type Application } from "../api/applications";
 
 const pipelineStatuses = [
-  { label: "Saved", color: "pipeline-saved" },
-  { label: "Applied", color: "pipeline-applied" },
-  { label: "Assessment", color: "pipeline-assessment" },
-  { label: "Interview", color: "pipeline-interview" },
-  { label: "Offer", color: "pipeline-offer" },
+  { label: "Saved", color: "saved" },
+  { label: "Applied", color: "applied" },
+  { label: "Assessment", color: "assessment" },
+  { label: "Interview", color: "interview" },
+  { label: "Offer", color: "offer" },
 ];
 
 function normalizeStatus(status: string) {
@@ -26,15 +32,34 @@ function normalizeStatus(status: string) {
 }
 
 function formatDate(dateValue: string | null) {
-  if (!dateValue) return "—";
+  if (!dateValue) return "Not scheduled";
 
   const date = new Date(`${dateValue.slice(0, 10)}T00:00:00`);
 
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "Not scheduled";
 
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
+  });
+}
+
+function getDaysUntil(dateValue: string | null, today: Date) {
+  if (!dateValue) return null;
+
+  const date = new Date(`${dateValue.slice(0, 10)}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return Math.round((date.getTime() - today.getTime()) / 86400000);
+}
+
+function formatToday() {
+  return new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
     year: "numeric",
   });
 }
@@ -44,23 +69,57 @@ export default function Overview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Initial application loading.
+  // State updates happen inside asynchronous callbacks rather than
+  // synchronously inside the effect.
   useEffect(() => {
     let active = true;
 
     getApplications()
       .then((data) => {
-        if (active) setApplications(data);
+        if (active) {
+          setApplications(data);
+        }
       })
       .catch(() => {
-        if (active) setError("Unable to load your overview. Please try again.");
+        if (active) {
+          setError(
+            "We couldn't load your applications. Check your connection and try again.",
+          );
+        }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       });
 
     return () => {
       active = false;
     };
+  }, []);
+
+  // Retry handler.
+  const loadApplications = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getApplications();
+      setApplications(data);
+    } catch {
+      setError(
+        "We couldn't load your applications. Check your connection and try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const today = useMemo(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
   }, []);
 
   const countStatus = (status: string) =>
@@ -75,238 +134,369 @@ export default function Overview() {
 
   const offers = countStatus("Offer");
   const rejected = countStatus("Rejected");
+
   const activeApplications = applications.filter((application) =>
     ["saved", "applied", "assessment", "interview"].includes(
       normalizeStatus(application.status),
     ),
   ).length;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const followUpApplications = useMemo(
+    () =>
+      applications
+        .filter((application) => {
+          const daysUntil = getDaysUntil(application.follow_up_date, today);
 
-  const followUpApplications = applications
-    .filter((application) => {
-      if (!application.follow_up_date) return false;
+          return daysUntil !== null && daysUntil >= 0 && daysUntil <= 7;
+        })
+        .sort((a, b) =>
+          (a.follow_up_date ?? "").localeCompare(b.follow_up_date ?? ""),
+        ),
+    [applications, today],
+  );
 
-      const date = new Date(
-        `${application.follow_up_date.slice(0, 10)}T00:00:00`,
-      );
-      const daysUntil = (date.getTime() - today.getTime()) / 86400000;
+  const recentApplications = useMemo(
+    () =>
+      [...applications]
+        .sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
 
-      return !Number.isNaN(date.getTime()) && daysUntil >= 0 && daysUntil <= 7;
-    })
-    .sort((a, b) =>
-      (a.follow_up_date ?? "").localeCompare(b.follow_up_date ?? ""),
-    );
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
 
-  const recentApplications = [...applications]
-    .sort((a, b) => {
-      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-      return dateB - dateA;
-    })
-    .slice(0, 5);
-
-  const stats = [
-    {
-      label: "Total applications",
-      value: applications.length,
-      caption: "Opportunities tracked",
-      icon: BriefcaseBusiness,
-      color: "stat-icon-blue",
-    },
-    {
-      label: "Interviews & assessments",
-      value: interviews,
-      caption: "Progress in the pipeline",
-      icon: CalendarDays,
-      color: "stat-icon-purple",
-    },
-    {
-      label: "Offers received",
-      value: offers,
-      caption: "Potential next steps",
-      icon: TrendingUp,
-      color: "stat-icon-green",
-    },
-    {
-      label: "Follow-ups due",
-      value: followUpApplications.length,
-      caption: "Due within the next 7 days",
-      icon: Clock3,
-      color: "stat-icon-orange",
-    },
-  ];
+          return dateB - dateA;
+        })
+        .slice(0, 5),
+    [applications],
+  );
 
   const responseRate =
     applications.length > 0
       ? Math.round(((interviews + offers) / applications.length) * 100)
       : 0;
 
+  const stats = [
+    {
+      label: "Total applications",
+      value: applications.length,
+      caption: "Every opportunity in one place",
+      icon: BriefcaseBusiness,
+      tone: "blue",
+    },
+    {
+      label: "Interviews & assessments",
+      value: interviews,
+      caption: "Moving through the process",
+      icon: CalendarDays,
+      tone: "violet",
+    },
+    {
+      label: "Offers received",
+      value: offers,
+      caption: "A step closer to your goal",
+      icon: ChartNoAxesCombined,
+      tone: "green",
+    },
+    {
+      label: "Follow-ups due",
+      value: followUpApplications.length,
+      caption: "Scheduled in the next 7 days",
+      icon: Clock3,
+      tone: "amber",
+    },
+  ];
+
   return (
-    <>
-      <section className="dashboard-welcome">
-        <div>
-          <span className="dashboard-eyebrow">YOUR CAREER JOURNEY</span>
-          <h2>Your job search at a glance</h2>
-          <p>Track your progress, stay prepared, and keep moving forward.</p>
+    <div className="overview-page">
+      {/* Hero section */}
+      <section className="overview-hero">
+        <div className="overview-hero-copy">
+          <span className="overview-kicker">
+            <Sparkles size={14} /> YOUR CAREER WORKSPACE
+          </span>
+
+          <h2>
+            Make your next move <span>count.</span>
+          </h2>
+
+          <p>
+            A clear view of your job search, the progress you have made, and
+            what deserves your attention next.
+          </p>
+
+          <div className="overview-hero-actions">
+            <Link className="overview-primary-action" to="/applications">
+              Manage applications <ArrowRight size={16} />
+            </Link>
+
+            <Link className="overview-secondary-action" to="/analytics">
+              View analytics <ChartNoAxesCombined size={16} />
+            </Link>
+          </div>
         </div>
-        <div className="welcome-icon">
-          <BriefcaseBusiness size={32} />
+
+        <div className="overview-hero-art" aria-hidden="true">
+          <div className="overview-orbit overview-orbit-one" />
+          <div className="overview-orbit overview-orbit-two" />
+
+          <div className="overview-hero-symbol">
+            <Target size={42} strokeWidth={1.5} />
+          </div>
+
+          <span className="overview-hero-spark overview-spark-one">✦</span>
+
+          <span className="overview-hero-spark overview-spark-two">✧</span>
+        </div>
+
+        <div className="overview-hero-date">
+          <CalendarDays size={15} /> {formatToday()}
         </div>
       </section>
 
+      {/* Error message */}
       {error && (
-        <div className="applications-error" role="alert">
-          {error}
+        <div className="overview-error" role="alert">
+          <span>{error}</span>
+
+          <button type="button" onClick={() => void loadApplications()}>
+            <RefreshCw size={14} /> Try again
+          </button>
         </div>
       )}
 
-      <section className="dashboard-stats">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-
-          return (
-            <article className="dashboard-stat-card" key={stat.label}>
-              <span className={`stat-icon ${stat.color}`}>
-                <Icon size={21} />
-              </span>
-              <p>{stat.label}</p>
-              <strong>{loading ? "—" : stat.value}</strong>
-              <span className="stat-caption">{stat.caption}</span>
-            </article>
-          );
-        })}
-      </section>
-
-      <section className="applications-section">
-        <div className="applications-heading">
+      {/* Statistics */}
+      <section
+        className="overview-section-block"
+        aria-labelledby="overview-stats-title"
+      >
+        <div className="overview-section-heading overview-stats-heading">
           <div>
-            <h2>Application pipeline</h2>
-            <p>See where your opportunities currently stand.</p>
+            <span className="overview-section-kicker">THE BIG PICTURE</span>
+
+            <h2 id="overview-stats-title">Your job search snapshot</h2>
+
+            <p>Key numbers that help you understand your momentum.</p>
           </div>
-          <Link className="secondary-button" to="/applications">
-            Manage jobs
-          </Link>
+
+          <span className="overview-live-indicator">
+            <span /> Workspace snapshot
+          </span>
         </div>
 
-        <div className="pipeline-grid">
-          {pipelineStatuses.map((status) => {
-            const count = countStatus(status.label);
-            const percentage =
-              applications.length > 0 ? (count / applications.length) * 100 : 0;
+        <div className="overview-stats-grid">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
 
             return (
-              <article className="pipeline-card" key={status.label}>
-                <span className="pipeline-label">{status.label}</span>
-                <strong className="pipeline-number">
-                  {loading ? "—" : count}
-                </strong>
-                <div className="pipeline-track">
-                  <span
-                    className={`pipeline-fill ${status.color}`}
-                    style={{ width: `${percentage}%` }}
-                  />
+              <article className="overview-stat-card" key={stat.label}>
+                <div
+                  className={`overview-stat-icon overview-tone-${stat.tone}`}
+                >
+                  <Icon size={20} />
                 </div>
-                <span className="pipeline-caption">
-                  {loading
-                    ? "Loading"
-                    : `${Math.round(percentage)}% of applications`}
-                </span>
+
+                <div className="overview-stat-label">{stat.label}</div>
+
+                <strong className="overview-stat-value">
+                  {loading ? (
+                    <span className="overview-value-skeleton" />
+                  ) : (
+                    stat.value
+                  )}
+                </strong>
+
+                <span className="overview-stat-caption">{stat.caption}</span>
               </article>
             );
           })}
         </div>
       </section>
 
-      <section className="dashboard-stats">
-        <article className="dashboard-stat-card">
-          <span className="stat-icon stat-icon-green">
-            <CircleCheck size={21} />
-          </span>
-          <p>Interview / offer rate</p>
-          <strong>{loading ? "—" : `${responseRate}%`}</strong>
-          <span className="stat-caption">
-            Interviews and offers relative to all applications
-          </span>
-        </article>
+      {/* Application pipeline */}
+      <section className="overview-section-block overview-pipeline-section">
+        <div className="overview-section-heading">
+          <div>
+            <span className="overview-section-kicker">PIPELINE HEALTH</span>
 
-        <article className="dashboard-stat-card">
-          <span className="stat-icon stat-icon-orange">
-            <CircleX size={21} />
-          </span>
-          <p>Rejected applications</p>
-          <strong>{loading ? "—" : rejected}</strong>
-          <span className="stat-caption">Keep learning from each outcome</span>
-        </article>
+            <h2>Where things stand</h2>
 
-        <article className="dashboard-stat-card">
-          <span className="stat-icon stat-icon-blue">
-            <ClipboardList size={21} />
-          </span>
-          <p>Active opportunities</p>
-          <strong>{loading ? "—" : activeApplications}</strong>
-          <span className="stat-caption">
-            Saved, applied, assessment, or interview
-          </span>
-        </article>
+            <p>See how your applications are moving through each stage.</p>
+          </div>
+
+          <Link className="overview-text-link" to="/applications">
+            Open pipeline <ArrowUpRight size={16} />
+          </Link>
+        </div>
+
+        <div className="overview-pipeline-grid">
+          {pipelineStatuses.map((status) => {
+            const count = countStatus(status.label);
+
+            const percentage =
+              applications.length > 0 ? (count / applications.length) * 100 : 0;
+
+            return (
+              <article className="overview-pipeline-card" key={status.label}>
+                <div className="overview-pipeline-topline">
+                  <span
+                    className={`overview-pipeline-dot dot-${status.color}`}
+                  />
+
+                  <span>{status.label}</span>
+                </div>
+
+                <strong>{loading ? "—" : count}</strong>
+
+                <div className="overview-progress-track">
+                  <span
+                    className={`overview-progress-fill fill-${status.color}`}
+                    style={{
+                      width: `${loading ? 0 : percentage}%`,
+                    }}
+                  />
+                </div>
+
+                <small>
+                  {loading ? "Loading" : `${Math.round(percentage)}% of total`}
+                </small>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
-      <section className="applications-section">
-        <div className="applications-heading">
-          <div>
-            <h2>Recent applications</h2>
-            <p>Your latest tracked opportunities.</p>
+      {/* Insights */}
+      <div className="overview-insights-grid">
+        <section className="overview-insight-card overview-conversion-card">
+          <div className="overview-insight-icon overview-tone-green">
+            <CircleCheck size={20} />
           </div>
-          <Link className="secondary-button" to="/applications">
-            View all
+
+          <div className="overview-insight-copy">
+            <span className="overview-section-kicker">CONVERSION INSIGHT</span>
+
+            <h3>{loading ? "—" : `${responseRate}%`}</h3>
+
+            <p>
+              Interview and offer stages compared with all tracked applications.
+            </p>
+          </div>
+
+          <div className="overview-insight-decoration" aria-hidden="true">
+            ↗
+          </div>
+        </section>
+
+        <section className="overview-insight-card">
+          <div className="overview-insight-icon overview-tone-blue">
+            <ClipboardList size={20} />
+          </div>
+
+          <div className="overview-insight-copy">
+            <span className="overview-section-kicker">
+              ACTIVE OPPORTUNITIES
+            </span>
+
+            <h3>{loading ? "—" : activeApplications}</h3>
+
+            <p>Saved, applied, assessment, and interview-stage applications.</p>
+          </div>
+        </section>
+
+        <section className="overview-insight-card">
+          <div className="overview-insight-icon overview-tone-rose">
+            <CircleX size={20} />
+          </div>
+
+          <div className="overview-insight-copy">
+            <span className="overview-section-kicker">CLOSED APPLICATIONS</span>
+
+            <h3>{loading ? "—" : rejected}</h3>
+
+            <p>Use every outcome to refine your next application.</p>
+          </div>
+        </section>
+      </div>
+
+      {/* Recent applications */}
+      <section className="overview-section-block">
+        <div className="overview-section-heading">
+          <div>
+            <span className="overview-section-kicker">LATEST ACTIVITY</span>
+
+            <h2>Recent applications</h2>
+
+            <p>Your five most recently added opportunities.</p>
+          </div>
+
+          <Link className="overview-text-link" to="/applications">
+            View all applications <ArrowRight size={16} />
           </Link>
         </div>
 
         {loading ? (
-          <div className="applications-empty">
-            <p>Loading your applications...</p>
+          <div className="overview-empty-state">
+            Loading your recent applications…
           </div>
         ) : recentApplications.length === 0 ? (
-          <div className="applications-empty">
-            <span className="empty-icon">
-              <BriefcaseBusiness size={23} />
+          <div className="overview-empty-state">
+            <span className="overview-empty-icon">
+              <BriefcaseBusiness size={22} />
             </span>
-            <h3>Start tracking your job search</h3>
-            <p>Add your first application to see your progress here.</p>
-            <Link className="dashboard-add-button" to="/applications">
-              Go to My Applications
+
+            <h3>Your next opportunity starts here</h3>
+
+            <p>
+              Add your first application and Trackora will organize your
+              progress.
+            </p>
+
+            <Link className="overview-primary-action" to="/applications">
+              Add your first application <ArrowRight size={16} />
             </Link>
           </div>
         ) : (
-          <div className="applications-table-wrap">
-            <table className="applications-table">
+          <div className="overview-table-wrap">
+            <table className="overview-recent-table">
               <thead>
                 <tr>
-                  <th>Company / Role</th>
+                  <th>Company & role</th>
                   <th>Location</th>
                   <th>Status</th>
-                  <th>Follow-up</th>
+                  <th>Follow-up date</th>
+                  <th aria-label="Open application" />
                 </tr>
               </thead>
+
               <tbody>
                 {recentApplications.map((application) => (
                   <tr key={application.id}>
                     <td>
                       <strong>{application.company_name}</strong>
-                      <span className="table-job-title">
-                        {application.job_title}
-                      </span>
+
+                      <span>{application.job_title}</span>
                     </td>
+
                     <td>{application.location || "—"}</td>
+
                     <td>
                       <span
-                        className={`application-status status-${normalizeStatus(application.status)}`}
+                        className={`overview-status-pill status-${normalizeStatus(application.status)}`}
                       >
                         {application.status}
                       </span>
                     </td>
+
                     <td>{formatDate(application.follow_up_date)}</td>
+
+                    <td>
+                      <Link
+                        className="overview-row-link"
+                        to={`/applications/${application.id}`}
+                        aria-label={`View ${application.company_name} application`}
+                      >
+                        <ArrowUpRight size={17} />
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -315,88 +505,110 @@ export default function Overview() {
         )}
       </section>
 
-      <section className="applications-section">
-        <div className="applications-heading">
+      {/* Upcoming follow-ups */}
+      <section className="overview-section-block overview-followups-section">
+        <div className="overview-section-heading">
           <div>
+            <span className="overview-section-kicker">STAY ONE STEP AHEAD</span>
+
             <h2>Upcoming follow-ups</h2>
-            <p>Scheduled follow-ups within the next seven days.</p>
+
+            <p>Keep the conversations moving with timely follow-ups.</p>
           </div>
-          <Link className="secondary-button" to="/follow-ups">
-            View follow-ups
+
+          <Link className="overview-text-link" to="/follow-ups">
+            All follow-ups <ArrowRight size={16} />
           </Link>
         </div>
 
         {loading ? (
-          <div className="applications-empty">
-            <p>Checking your follow-ups...</p>
+          <div className="overview-empty-state">
+            Checking your upcoming follow-ups…
           </div>
         ) : followUpApplications.length === 0 ? (
-          <div className="applications-empty">
-            <span className="empty-icon">
-              <Clock3 size={23} />
-            </span>
-            <h3>You're up to date</h3>
-            <p>No follow-ups are scheduled for the next seven days.</p>
+          <div className="overview-followup-empty">
+            <div className="overview-followup-empty-icon">
+              <Clock3 size={21} />
+            </div>
+
+            <div>
+              <strong>You're all caught up</strong>
+
+              <p>No follow-ups are scheduled in the next seven days.</p>
+            </div>
           </div>
         ) : (
-          <div className="follow-up-list">
-            {followUpApplications.slice(0, 4).map((application) => (
-              <article className="follow-up-item" key={application.id}>
-                <div className="follow-up-item-icon">
-                  <Clock3 size={19} />
-                </div>
-                <div className="follow-up-item-content">
-                  <strong>{application.company_name}</strong>
-                  <span>{application.job_title}</span>
-                  <small>{formatDate(application.follow_up_date)}</small>
-                </div>
-                <Link
-                  className="follow-up-open-link"
-                  to={`/applications/${application.id}`}
-                  aria-label={`View ${application.company_name} application`}
+          <div className="overview-followup-list">
+            {followUpApplications.slice(0, 4).map((application) => {
+              const daysUntil = getDaysUntil(application.follow_up_date, today);
+
+              return (
+                <article
+                  className="overview-followup-item"
+                  key={application.id}
                 >
-                  <ArrowUpRight size={19} />
-                </Link>
-              </article>
-            ))}
+                  <div className="overview-followup-date-icon">
+                    <CalendarDays size={18} />
+                  </div>
+
+                  <div className="overview-followup-details">
+                    <strong>{application.company_name}</strong>
+
+                    <span>{application.job_title}</span>
+                  </div>
+
+                  <div className="overview-followup-when">
+                    <strong>{formatDate(application.follow_up_date)}</strong>
+
+                    <span>
+                      {daysUntil === 0 ? "Due today" : `In ${daysUntil} days`}
+                    </span>
+                  </div>
+
+                  <Link
+                    className="overview-row-link"
+                    to={`/applications/${application.id}`}
+                    aria-label={`View ${application.company_name} application`}
+                  >
+                    <ArrowUpRight size={17} />
+                  </Link>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
 
-      <section className="applications-section">
-        <div className="applications-heading">
-          <div>
-            <h2>Keep your momentum</h2>
-            <p>Go directly to the tools you need.</p>
-          </div>
+      {/* Quick actions */}
+      <section className="overview-quick-actions">
+        <div>
+          <span className="overview-section-kicker">YOUR NEXT STEP</span>
+
+          <h2>Keep your momentum going.</h2>
+
+          <p>Everything you need to stay organized is one click away.</p>
         </div>
 
-        <div className="dashboard-stats">
-          <Link className="dashboard-stat-card" to="/applications">
-            <span className="stat-icon stat-icon-blue">
-              <BriefcaseBusiness size={21} />
-            </span>
-            <p>Manage applications</p>
-            <span className="stat-caption">Add, update, and organize jobs</span>
+        <div className="overview-quick-links">
+          <Link to="/applications">
+            <BriefcaseBusiness size={18} />
+            <span>Applications</span>
+            <ArrowUpRight size={15} />
           </Link>
 
-          <Link className="dashboard-stat-card" to="/analytics">
-            <span className="stat-icon stat-icon-purple">
-              <ChartNoAxesCombined size={21} />
-            </span>
-            <p>Review analytics</p>
-            <span className="stat-caption">Understand your pipeline</span>
+          <Link to="/analytics">
+            <ChartNoAxesCombined size={18} />
+            <span>Analytics</span>
+            <ArrowUpRight size={15} />
           </Link>
 
-          <Link className="dashboard-stat-card" to="/follow-ups">
-            <span className="stat-icon stat-icon-orange">
-              <Clock3 size={21} />
-            </span>
-            <p>Check follow-ups</p>
-            <span className="stat-caption">Stay on top of reminders</span>
+          <Link to="/import">
+            <ClipboardList size={18} />
+            <span>Import a job</span>
+            <ArrowUpRight size={15} />
           </Link>
         </div>
       </section>
-    </>
+    </div>
   );
 }
