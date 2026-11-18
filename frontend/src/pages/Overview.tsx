@@ -18,6 +18,11 @@ import {
 } from "lucide-react";
 
 import { getApplications, type Application } from "../api/applications";
+import {
+  countActive,
+  countFollowUpsDue,
+  countInterviewStage,
+} from "../utils/metrics";
 
 const pipelineStatuses = [
   { label: "Saved", color: "saved" },
@@ -128,18 +133,13 @@ export default function Overview() {
         normalizeStatus(application.status) === status.toLowerCase(),
     ).length;
 
-  const interviews = applications.filter((application) =>
-    ["interview", "assessment"].includes(normalizeStatus(application.status)),
-  ).length;
+  const interviews = countInterviewStage(applications);
 
   const offers = countStatus("Offer");
   const rejected = countStatus("Rejected");
 
-  const activeApplications = applications.filter((application) =>
-    ["saved", "applied", "assessment", "interview"].includes(
-      normalizeStatus(application.status),
-    ),
-  ).length;
+  const activeApplications = countActive(applications);
+  const followUpsDue = countFollowUpsDue(applications);
 
   const followUpApplications = useMemo(
     () =>
@@ -198,8 +198,8 @@ export default function Overview() {
     },
     {
       label: "Follow-ups due",
-      value: followUpApplications.length,
-      caption: "Scheduled in the next 7 days",
+      value: followUpsDue,
+      caption: "Overdue or due in the next 7 days",
       icon: Clock3,
       tone: "amber",
     },
@@ -398,7 +398,7 @@ export default function Overview() {
 
             <h3>{loading ? "—" : activeApplications}</h3>
 
-            <p>Saved, applied, assessment, and interview-stage applications.</p>
+            <p>Applied, assessment, and interview-stage applications.</p>
           </div>
         </section>
 

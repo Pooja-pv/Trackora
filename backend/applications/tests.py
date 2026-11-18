@@ -5,7 +5,7 @@ from django.test import SimpleTestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .job_extraction import validate_url
+from .job_extraction import extract_work_mode, validate_url
 from .models import JobApplication
 
 User = get_user_model()
@@ -93,6 +93,35 @@ class JobApplicationAPITests(APITestCase):
         delete = self.client.delete(f"{self.list_url}{application.id}/")
         self.assertEqual(delete.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(JobApplication.objects.filter(pk=application.pk).exists())
+
+
+class JobImportRegressionTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="import_user",
+            email="import@example.com",
+            password="TestPassword123!",
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_unknown_work_mode_is_empty_so_it_can_be_saved(self):
+        self.assertEqual(extract_work_mode("Build APIs with Django."), "")
+
+    def test_application_with_long_job_url_can_be_saved(self):
+        long_url = "https://jobs.example.com/apply?" + "utm=" + "a" * 500
+        response = self.client.post(
+            "/api/applications/",
+            {
+                "company_name": "Example Co",
+                "job_title": "Python Developer",
+                "job_url": long_url,
+                "work_mode": "",
+                "applied_date": None,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(JobApplication.objects.get().job_url, long_url)
 
 
 class JobUrlValidationTests(SimpleTestCase):

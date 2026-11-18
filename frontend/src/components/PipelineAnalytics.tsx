@@ -77,7 +77,7 @@ export default function PipelineAnalytics({
           <span className="pipeline-metric-icon pipeline-blue">
             <BriefcaseBusiness size={18} />
           </span>
-          <span className="pipeline-metric-label">Active applications</span>
+          <span className="pipeline-metric-label">Submitted applications</span>
           <strong>{activeApplications}</strong>
           <span className="pipeline-metric-caption">
             Applications beyond Saved

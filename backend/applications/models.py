@@ -25,7 +25,7 @@ class JobApplication(models.Model):
     )
     company_name = models.CharField(max_length=200)
     job_title = models.CharField(max_length=200)
-    job_url = models.URLField(blank=True)
+    job_url = models.URLField(max_length=2000, blank=True)
     location = models.CharField(max_length=200, blank=True)
     work_mode = models.CharField(
         max_length=20,

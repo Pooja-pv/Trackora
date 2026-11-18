@@ -153,7 +153,9 @@ export default function ImportJobsPage() {
         job_title: details.job_title || "",
         company_name: details.company_name || "",
         location: details.location || "",
-        work_mode: details.work_mode || "",
+        work_mode: ["onsite", "remote", "hybrid"].includes(details.work_mode)
+          ? details.work_mode
+          : "",
         job_description: details.job_description || "",
       }));
 
@@ -207,7 +209,7 @@ export default function ImportJobsPage() {
         job_description: form.job_description.trim(),
         notes: form.notes.trim(),
         salary_range: form.salary_range.trim(),
-        applied_date: form.applied_date || "",
+        applied_date: form.applied_date || null,
         interview_date: form.interview_date || null,
         follow_up_date: form.follow_up_date || null,
       });

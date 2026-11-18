@@ -39,7 +39,7 @@ export interface CreateApplicationData {
   job_description: string;
   notes: string;
   salary_range: string;
-  applied_date: string;
+  applied_date: string | null;
   interview_date: string | null;
   follow_up_date: string | null;
 }

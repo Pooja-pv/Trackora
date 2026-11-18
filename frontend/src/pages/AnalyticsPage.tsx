@@ -10,6 +10,11 @@ import {
 import { useNavigate } from "react-router-dom";
 import { getApplications, type Application } from "../api/applications";
 import PipelineAnalytics from "../components/PipelineAnalytics";
+import {
+  countActive,
+  countFollowUpsDue,
+  countInterviewStage,
+} from "../utils/metrics";
 
 
 
@@ -338,35 +343,15 @@ export default function AnalyticsPage() {
     };
   }, []);
 
-  const activeCount = applications.filter((application) =>
-    ["applied", "assessment", "interview"].includes(
-      application.status.toLowerCase(),
-    ),
-  ).length;
+  const activeCount = countActive(applications);
 
-  const interviewCount = applications.filter(
-    (application) => application.status.toLowerCase() === "interview",
-  ).length;
+  const interviewCount = countInterviewStage(applications);
 
   const offerCount = applications.filter(
     (application) => application.status.toLowerCase() === "offer",
   ).length;
 
-  const upcomingFollowUps = applications.filter((application) => {
-    if (!application.follow_up_date) return false;
-
-    const followUp = new Date(application.follow_up_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    followUp.setHours(0, 0, 0, 0);
-
-    return (
-      followUp >= today &&
-      !["rejected", "withdrawn", "offer"].includes(
-        application.status.toLowerCase(),
-      )
-    );
-  }).length;
+  const upcomingFollowUps = countFollowUpsDue(applications);
 
   const metrics = [
     {
@@ -384,9 +369,9 @@ export default function AnalyticsPage() {
       style: "analytics-metric-blue",
     },
     {
-      label: "Interviews",
+      label: "Interviews & assessments",
       value: interviewCount,
-      detail: "Currently at interview stage",
+      detail: "Interview and assessment stages",
       icon: Target,
       style: "analytics-metric-violet",
     },
@@ -510,8 +495,8 @@ export default function AnalyticsPage() {
                         upcomingFollowUps === 1
                           ? "application has"
                           : "applications have"
-                      } a follow-up scheduled for today or a future date.`
-                    : "No upcoming follow-ups are scheduled. Add a follow-up date when you need to check in with an employer."}
+                      } a follow-up that is overdue or due within 7 days.`
+                    : "No follow-ups are due. Add a follow-up date when you need to check in with an employer."}
                 </p>
               </div>
               <button

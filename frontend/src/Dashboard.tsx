@@ -24,6 +24,7 @@ import {
   type WorkMode,
 } from "./api/applications";
 import PipelineAnalytics from "./components/PipelineAnalytics";
+import { countFollowUpsDue, countInterviewStage } from "./utils/metrics";
 
 const statusOptions: ApplicationStatus[] = [
   "Saved",
@@ -273,18 +274,13 @@ export default function Dashboard() {
     });
   }, [applications, search, statusFilter]);
 
-  const interviewCount = applications.filter((application) =>
-    ["interview", "assessment"].includes(application.status.toLowerCase()),
-  ).length;
+  const interviewCount = countInterviewStage(applications);
 
   const offerCount = applications.filter(
     (application) => application.status.toLowerCase() === "offer",
   ).length;
 
-  const followUpsDue = applications.filter((application) => {
-    const state = getFollowUpState(application.follow_up_date);
-    return state === "overdue" || state === "upcoming";
-  }).length;
+  const followUpsDue = countFollowUpsDue(applications);
 
   const saveApplication = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -458,9 +454,9 @@ export default function Dashboard() {
           <span className="stat-icon stat-icon-purple">
             <CalendarDays size={21} />
           </span>
-          <p>Interviews</p>
+          <p>Interviews &amp; assessments</p>
           <strong>{interviewCount}</strong>
-          <span className="stat-caption">Interview-stage applications</span>
+          <span className="stat-caption">Interview and assessment stages</span>
         </article>
 
         <article className="dashboard-stat-card">
@@ -478,7 +474,7 @@ export default function Dashboard() {
           </span>
           <p>Follow-ups due</p>
           <strong>{followUpsDue}</strong>
-          <span className="stat-caption">Due today or within 7 days</span>
+          <span className="stat-caption">Overdue or due within 7 days</span>
         </article>
       </section>
 

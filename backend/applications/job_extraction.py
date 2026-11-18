@@ -12,6 +12,15 @@ from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
+# Must match the max_length values on the JobApplication model.
+FIELD_LIMITS = {
+    "job_url": 2000,
+    "job_title": 200,
+    "company_name": 200,
+    "location": 200,
+}
+
+
 class JobPageParser(HTMLParser):
     void_tags = {
         "area", "base", "br", "col", "embed", "hr", "img", "input",
@@ -320,7 +329,8 @@ def extract_work_mode(description, source_text=""):
     if re.search(r"\b(on[- ]site|onsite|in[- ]office|office[- ]based|no telecommuting)\b", text):
         return "onsite"
 
-    return "unknown"
+    # Empty means "not specified", which is a valid value for the model field.
+    return ""
 
 
 def extract_python_org_job(html, url):
@@ -490,6 +500,11 @@ def extract_job_details(url):
 
     if not result.get("job_title"):
         raise ValueError("Could not identify the job title on this page.")
+
+    # Keep values within the database column limits so saving never fails.
+    for field, limit in FIELD_LIMITS.items():
+        if isinstance(result.get(field), str):
+            result[field] = result[field][:limit]
 
     return result
 
