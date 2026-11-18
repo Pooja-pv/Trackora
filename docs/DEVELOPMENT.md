@@ -1,15 +1,6 @@
-# Development workflow
+# Development notes
 
-## Before changing code
-
-```bash
-git status --short
-git log --oneline -8
-```
-
-Keep unrelated local work intact. Do not reset, clean, or force-push a branch just to make the working tree look tidy.
-
-## Verify changes
+## Checks to run before committing
 
 ```bash
 # Backend
@@ -22,27 +13,36 @@ npm run lint
 npm run build
 ```
 
-## Commit by meaningful change
+The same checks run in GitHub Actions on every push and pull request.
 
-Review the diff before staging:
+## Commits
+
+Look over your changes before staging them:
 
 ```bash
-git diff --check
-git diff --stat
 git status --short
+git diff --stat
+git diff --check
 ```
 
-Stage only the files belonging to one logical change and use a message that describes the outcome. Examples (use only when they match the actual diff):
+Keep each commit to one change and describe what it does, for example:
 
 ```bash
-git add backend/accounts/tests.py backend/applications/tests.py
-git commit -m "test: expand authentication and application coverage"
-
-git add backend/requirements.txt backend/config/settings.py .env.example frontend/src/api/client.ts frontend/.env.example
-git commit -m "chore: improve local configuration and API setup"
-
-git add .github/workflows/ci.yml README.md docs/
-git commit -m "docs: add project architecture and CI workflow"
+git commit -m "test: add cross-user access tests"
+git commit -m "fix: allow longer job URLs"
+git commit -m "docs: update setup instructions"
 ```
 
-Do not copy these examples blindly: inspect `git diff` and group the final changes based on what actually changed. Keep `.env`, database files, credentials, and dependency folders out of commits.
+Never commit `.env`, database files, credentials or dependency folders such as `node_modules` and `.venv`.
+
+## Database changes
+
+After changing a model, create a new migration and run it:
+
+```bash
+cd backend
+python manage.py makemigrations
+python manage.py migrate
+```
+
+Do not edit a migration that has already been applied.
