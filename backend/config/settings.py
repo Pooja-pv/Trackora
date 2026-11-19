@@ -1,4 +1,3 @@
-
 import os
 from pathlib import Path
 
@@ -36,6 +35,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -83,7 +83,11 @@ else:
             "HOST": os.getenv("DATABASE_HOST", "localhost"),
             "PORT": os.getenv("DATABASE_PORT", "5432"),
             "CONN_MAX_AGE": 60,
+            "OPTIONS": {
+                "sslmode": "require",
+            },
         }
+        
     }
 
 
@@ -107,8 +111,17 @@ TIME_ZONE = "Asia/Kolkata"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -131,6 +144,10 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_REFERRER_POLICY = "same-origin"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+SESSION_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = "None"
 
 
 REST_FRAMEWORK = {
