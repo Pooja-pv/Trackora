@@ -91,6 +91,14 @@ def register_view(request):
             status=400,
         )
 
+    except IntegrityError:
+        return JsonResponse(
+            {"detail": "An account with these details already exists."},
+            status=400,
+        )
+
+    login(request, user)  
+
     return JsonResponse(
         {
             "id": user.id,

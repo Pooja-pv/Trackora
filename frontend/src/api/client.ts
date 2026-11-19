@@ -1,6 +1,11 @@
+
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/";
+const API_BASE_URL = import.meta.env.DEV
+  ? (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/")
+  : "/api/";
+
+const API_ROOT = API_BASE_URL.replace(/\/+$/, "");
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -15,7 +20,7 @@ apiClient.interceptors.request.use(async (config) => {
 
   if (method && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
     const response = await axios.get(
-      `${API_BASE_URL.replace(/\/$/, "")}/auth/csrf/`,
+      `${API_ROOT.replace(/\/api$/, "")}/api/csrf/`,
       {
         withCredentials: true,
       },
